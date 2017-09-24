@@ -94,7 +94,7 @@ func GetThread(board string, thread string) (*ThreadResponse, error) {
 	return obj, nil
 }
 
-func ListPosts(board string, thread string) ([]Post, error) {
+func ListPosts(board string, thread string) ([]*Post, error) {
 	if res, err := GetThread(board, thread); err != nil {
 		return nil, err
 	} else {
