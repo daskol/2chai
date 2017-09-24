@@ -1,0 +1,50 @@
+syntax = "proto3";
+
+option go_package = "github.com/daskol/2chai/proto";
+
+message Post {
+    // Идентификатор нить, к которому принадлежит пост.
+    uint64 thread_id = 1;
+
+    // Глобальный идентификатор поста.
+    uint64 comment_id = 2;
+
+    // Относительный идентификатор поста в данной ните.
+    uint64 ordinal = 3;
+
+    // Тема поста.
+    string subject = 4;
+
+    // Комментарий.
+    string comment = 5;
+
+    // Время, когда был оставлен комментарий.
+    int64 timestamp = 6;
+
+    // Вектор идентификаторов постов, на который отвечает данный коментарий.
+    repeated uint64 reply_to = 7;
+}
+
+message Thread {
+    // Идентификатор доски, на котором стартовала нить.
+    uint64 board_id = 1;
+
+    // Идентификатор нити(первого поста).
+    uint64 thread_id = 2;
+
+    // Ответы, принадлежащией этой ните.
+    repeated Post posts = 3;
+}
+
+message Board {
+    // Локальный числовой идентификатор доски.
+    uint64 board_id = 1;
+
+    // Название доски.
+    string name = 2;
+}
+
+message BoardList {
+    // Массив c описанием досок.
+    repeated Board boards = 1;
+}
