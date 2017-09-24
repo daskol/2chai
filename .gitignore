@@ -1,2 +1,8 @@
 # ignore target binary
 /2chai
+
+# ignore json outputs
+*.json
+
+# ignore swap files
+*.swp
