@@ -15,6 +15,7 @@ func printList(lst *Threads) {
 
 func main() {
 	board := flag.String("board", "abu", "Board to mine.")
+	thread := flag.String("thread", "2", "Thread to mine.")
 
 	flag.Parse()
 
@@ -28,5 +29,13 @@ func main() {
 		log.Fatal(err)
 	} else {
 		printList(lst)
+	}
+
+	if posts, err := ListPosts(*board, *thread); err != nil {
+		log.Fatal(err)
+	} else {
+		for i, post := range posts {
+			log.Printf("[%03d] %s\n", i, &post)
+		}
 	}
 }
