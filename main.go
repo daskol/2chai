@@ -2,13 +2,25 @@ package main
 
 import (
 	"context"
+	"database/sql"
 	"flag"
 	"log"
 	"os"
 
+	sq "github.com/Masterminds/squirrel"
 	"github.com/daskol/2chai/api"
 	"github.com/google/subcommands"
+	_ "github.com/lib/pq"
 )
+
+var dsn string
+
+func init() {
+	dsn = os.Getenv("DSN")
+	if dsn == "" {
+		dsn = "postgresql://2chai@127.0.0.1/2chai?sslmode=disable"
+	}
+}
 
 // listBoards реализует интерфейс subcommands.Commander для тго, чтобы вывести
 // список возможныйх досок.
@@ -114,6 +126,75 @@ func (l *listPosts) Execute(_ context.Context, f *flag.FlagSet, _ ...interface{}
 	return subcommands.ExitSuccess
 }
 
+// syncBoards реализует интерфейс subcommands.Commander для того, чтобы
+// наполнить базу данных списком доступных досок.
+type syncBoards struct{}
+
+func (s *syncBoards) Name() string     { return "sync-boards" }
+func (s *syncBoards) Synopsis() string { return "Synchronize avaliable boards." }
+func (s *syncBoards) Usage() string {
+	return "sync-boards\n"
+}
+
+func (s *syncBoards) SetFlags(_ *flag.FlagSet) {}
+
+func (s *syncBoards) Execute(_ context.Context, f *flag.FlagSet, _ ...interface{}) subcommands.ExitStatus {
+	if len(f.Args()) > 0 {
+		log.Println("Too many arguments.")
+		return subcommands.ExitUsageError
+	}
+
+	if lst, err := api.ListBoards(); err != nil {
+		log.Fatal(err)
+	} else if err := s.upsertBoards(lst); err != nil {
+		log.Fatal(err)
+	}
+
+	return subcommands.ExitSuccess
+}
+
+func (s *syncBoards) upsertBoards(boards *api.Boards) error {
+	log.Println("connect to database")
+	db, err := sql.Open("postgres", dsn)
+
+	if err != nil {
+		return err
+	}
+
+	defer db.Close()
+
+	if err := db.Ping(); err != nil {
+		return err
+	}
+
+	log.Println("prepare insert or update statement")
+	stmt := sq.
+		Insert("boards").
+		Columns("abbr", "name", "description").
+		Suffix("" +
+			"ON CONFLICT (abbr) " +
+			"DO UPDATE " +
+			"SET name = $2," +
+			"    description = $3," +
+			"    updated_at = CLOCK_TIMESTAMP()").
+		PlaceholderFormat(sq.Dollar).
+		RunWith(db)
+
+	for _, board := range boards.Boards {
+		stmt = stmt.Values(board.ID, board.Name, board.Info)
+	}
+
+	log.Println("execute statement")
+
+	if _, err := stmt.Exec(); err != nil {
+		return err
+	}
+
+	log.Println("done.")
+
+	return nil
+}
+
 func main() {
 	subcommands.Register(subcommands.HelpCommand(), "")
 	subcommands.Register(subcommands.FlagsCommand(), "")
@@ -122,6 +203,8 @@ func main() {
 	subcommands.Register(&listBoards{}, "")
 	subcommands.Register(&listPosts{}, "")
 	subcommands.Register(&listThreads{}, "")
+
+	subcommands.Register(&syncBoards{}, "")
 
 	flag.Parse()
 
