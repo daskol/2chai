@@ -1,8 +1,50 @@
-package main
+package api
 
 import "fmt"
 
 //go:generate ffjson $GOFILE
+
+type Tag struct {
+	Board string `json:"board"` //	vg
+	Tag   string `json:"tag"`   //	aion
+}
+
+// Board описывает глобальную доску.
+type Board struct {
+	BumpLimit     int    `json:"bump_limit"`     //	500
+	Category      string `json:"category"`       //	"Разное"
+	DefaultName   string `json:"default_name"`   //	"Аноним"
+	EnableNames   int    `json:"enable_names"`   //	0
+	EnableSage    int    `json:"enable_sage"`    //	1
+	ID            string `json:"id"`             //	"b"
+	Info          string `json:"info"`           //	"бред"
+	LastNum       int    `json:"last_num"`       //	167025613
+	Name          string `json:"name"`           //	"Бред"
+	Speed         int    `json:"speed"`          //	2703
+	Threads       int    `json:"threads"`        //	210
+	UniquePosters int    `json:"unique_posters"` //	3727
+}
+
+func (b *Board) String() string {
+	return fmt.Sprintf("<Board[%s] name=%s; nothreads=%d; speed=%d;>",
+		b.ID, b.Name, b.Threads, b.Speed)
+}
+
+// Boards представляет список доступных глобальных досок.
+type Boards struct {
+	Boards       []*Board `json:"boards"`
+	GlobalBoards int      `json:"global_boards"` //	156
+	GlobalPosts  string   `json:"global_posts"`  //	"318,533,624\u0000"
+	GlobalSpeed  string   `json:"global_speed"`  //	"6,107\u0000"
+	IsIndex      int      `json:"is_index"`      //	1
+	Tags         []*Tag   `json:"tags"`
+	Type         int      `json:"type"` //	0
+}
+
+func (b *Boards) String() string {
+	return fmt.Sprintf("<Boards[%d] noboards=%d; noglobal=%d; index=%d;>",
+		b.Type, len(b.Boards), b.GlobalBoards, b.IsIndex)
+}
 
 // Top представляет запись, содержащую популярную нить на данный моммент.
 type Top struct {

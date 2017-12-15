@@ -1,4 +1,4 @@
-package main
+package api
 
 import (
 	"net/http"
@@ -6,6 +6,26 @@ import (
 
 	"github.com/pquerna/ffjson/ffjson"
 )
+
+func ListBoards() (*Boards, error) {
+	url := "https://2ch.hk/boards.json"
+	res, err := http.Get(url)
+
+	if err != nil {
+		return nil, err
+	}
+
+	defer res.Body.Close()
+
+	dec := ffjson.NewDecoder()
+	boards := &Boards{}
+
+	if err := dec.DecodeReader(res.Body, boards); err != nil {
+		return nil, err
+	}
+
+	return boards, nil
+}
 
 func ListThreads(board string, page int) (*Threads, error) {
 	endpoint := strconv.Itoa(page)

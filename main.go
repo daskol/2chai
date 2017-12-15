@@ -6,8 +6,40 @@ import (
 	"log"
 	"os"
 
+	"github.com/daskol/2chai/api"
 	"github.com/google/subcommands"
 )
+
+// listBoards реализует интерфейс subcommands.Commander для тго, чтобы вывести
+// список возможныйх досок.
+type listBoards struct{}
+
+func (l *listBoards) Name() string     { return "list-boards" }
+func (l *listBoards) Synopsis() string { return "List avaliable boards." }
+func (l *listBoards) Usage() string {
+	return "list-boards\n"
+}
+
+func (l *listBoards) SetFlags(_ *flag.FlagSet) {}
+
+func (l *listBoards) Execute(_ context.Context, f *flag.FlagSet, _ ...interface{}) subcommands.ExitStatus {
+	if len(f.Args()) > 0 {
+		log.Println("Too many arguments.")
+		return subcommands.ExitUsageError
+	}
+
+	if lst, err := api.ListBoards(); err != nil {
+		log.Fatal(err)
+	} else {
+		log.Println(lst)
+
+		for i, board := range lst.Boards {
+			log.Printf("[%03d] %s\n", i+1, board)
+		}
+	}
+
+	return subcommands.ExitSuccess
+}
 
 // listThreads реализует интерфейс subcommands.Commander для того, чтобы можно
 // было пролистать список нитей заданной доски.
@@ -33,7 +65,7 @@ func (l *listThreads) Execute(_ context.Context, f *flag.FlagSet, _ ...interface
 
 	board := f.Args()[0]
 
-	if lst, err := ListThreadCatalog(board); err != nil {
+	if lst, err := api.ListThreadCatalog(board); err != nil {
 		log.Fatal(err)
 	} else {
 		log.Println(lst)
@@ -71,7 +103,7 @@ func (l *listPosts) Execute(_ context.Context, f *flag.FlagSet, _ ...interface{}
 	board := f.Args()[0]
 	thread := f.Args()[1]
 
-	if posts, err := ListPosts(board, thread); err != nil {
+	if posts, err := api.ListPosts(board, thread); err != nil {
 		log.Fatal(err)
 	} else {
 		for i, post := range posts {
@@ -87,6 +119,7 @@ func main() {
 	subcommands.Register(subcommands.FlagsCommand(), "")
 	subcommands.Register(subcommands.CommandsCommand(), "")
 
+	subcommands.Register(&listBoards{}, "")
 	subcommands.Register(&listPosts{}, "")
 	subcommands.Register(&listThreads{}, "")
 
