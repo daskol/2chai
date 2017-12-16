@@ -7,6 +7,7 @@ import (
 	"log"
 	"os"
 	"strconv"
+	"time"
 
 	sq "github.com/Masterminds/squirrel"
 	"github.com/daskol/2chai/api"
@@ -262,19 +263,39 @@ func (s *syncPosts) upsertPosts(board, thread string, posts []*api.Post) error {
 	log.Println("prepare insert or update statement")
 	stmt := sq.
 		Insert("posts").
-		Columns("post_id", "thread_id", "board_id", "subject", "comment").
+		Columns("post_id", "thread_id", "board_id",
+			"ordinal", "op",
+			"author", "email", "subject", "comment",
+			"created_at").
 		Suffix("ON CONFLICT (board_id, post_id) DO NOTHING").
 		PlaceholderFormat(sq.Dollar).
 		RunWith(db)
 
 	for _, post := range posts {
+		createdAt := time.Unix(post.Timestamp, 0)
+
 		stmt = stmt.Values(post.Num, threadID, boardID,
-			post.Subject, post.Comment)
+			post.Number, post.Op,
+			post.Name, post.Email, post.Subject, post.Comment,
+			createdAt)
 	}
 
 	log.Println("execute statement")
 
 	if _, err := stmt.Exec(); err != nil {
+		return err
+	}
+
+	log.Println("update thread update timestamp")
+	createdAt := time.Unix(posts[0].LastHit, 0)
+	_, err = sq.Update("threads").
+		Set("updated_at", createdAt).
+		Where(sq.Eq{"board_id": boardID, "thread_id": threadID}).
+		PlaceholderFormat(sq.Dollar).
+		RunWith(db).
+		Exec()
+
+	if err != nil {
 		return err
 	}
 
@@ -347,13 +368,14 @@ func (s *syncThreads) upsertThreads(board string, threads *api.Threads) error {
 	log.Println("prepare insert or update statement")
 	stmt := sq.
 		Insert("threads").
-		Columns("thread_id", "board_id", "subject").
+		Columns("thread_id", "board_id", "subject", "created_at").
 		Suffix("ON CONFLICT (board_id, thread_id) DO NOTHING").
 		PlaceholderFormat(sq.Dollar).
 		RunWith(db)
 
 	for _, thread := range threads.Threads {
-		stmt = stmt.Values(thread.Num, boardID, thread.Subject)
+		createdAt := time.Unix(thread.Timestamp, 0)
+		stmt = stmt.Values(thread.Num, boardID, thread.Subject, createdAt)
 	}
 
 	log.Println("execute statement")
