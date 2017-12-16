@@ -6,6 +6,7 @@ import (
 	"flag"
 	"log"
 	"os"
+	"strconv"
 
 	sq "github.com/Masterminds/squirrel"
 	"github.com/daskol/2chai/api"
@@ -195,6 +196,93 @@ func (s *syncBoards) upsertBoards(boards *api.Boards) error {
 	return nil
 }
 
+// syncPosts реализует интерфейс subcommands.Commander для того, чтобы
+// добавить новые нити или обновить существующие.
+type syncPosts struct{}
+
+func (s *syncPosts) Name() string     { return "sync-posts" }
+func (s *syncPosts) Synopsis() string { return "Synchronize posts of specified thread." }
+func (s *syncPosts) Usage() string {
+	return "sync-posts BOARD THREAD\n"
+}
+
+func (s *syncPosts) SetFlags(_ *flag.FlagSet) {}
+
+func (s *syncPosts) Execute(_ context.Context, f *flag.FlagSet, _ ...interface{}) subcommands.ExitStatus {
+	switch {
+	case len(f.Args()) < 2:
+		log.Println("Too few arguments.")
+		return subcommands.ExitUsageError
+	case len(f.Args()) > 2:
+		log.Println("Too many arguments.")
+		return subcommands.ExitUsageError
+	}
+
+	board := f.Args()[0]
+	thread := f.Args()[1]
+
+	if lst, err := api.ListPosts(board, thread); err != nil {
+		log.Fatal(err)
+	} else if err := s.upsertPosts(board, thread, lst); err != nil {
+		log.Fatal(err)
+	}
+
+	return subcommands.ExitSuccess
+}
+
+func (s *syncPosts) upsertPosts(board, thread string, posts []*api.Post) error {
+	log.Println("connect to database")
+	db, err := sql.Open("postgres", dsn)
+
+	if err != nil {
+		return err
+	}
+
+	defer db.Close()
+
+	if err := db.Ping(); err != nil {
+		return err
+	}
+
+	log.Println("find identifier of board `" + board + "`")
+	boardID := 0
+	threadID, _ := strconv.Atoi(thread)
+	rowScanner := sq.
+		Select("board_id").
+		From("boards").
+		Where(sq.Eq{"abbr": board}).
+		PlaceholderFormat(sq.Dollar).
+		RunWith(db).
+		QueryRow()
+
+	if err := rowScanner.Scan(&boardID); err != nil {
+		return err
+	}
+
+	log.Println("prepare insert or update statement")
+	stmt := sq.
+		Insert("posts").
+		Columns("post_id", "thread_id", "board_id", "subject", "comment").
+		Suffix("ON CONFLICT (board_id, post_id) DO NOTHING").
+		PlaceholderFormat(sq.Dollar).
+		RunWith(db)
+
+	for _, post := range posts {
+		stmt = stmt.Values(post.Num, threadID, boardID,
+			post.Subject, post.Comment)
+	}
+
+	log.Println("execute statement")
+
+	if _, err := stmt.Exec(); err != nil {
+		return err
+	}
+
+	log.Println("done.")
+
+	return nil
+}
+
 // syncThreads реализует интерфейс subcommands.Commander для того, чтобы
 // добавить новые нити или обновить существующие.
 type syncThreads struct{}
@@ -260,7 +348,7 @@ func (s *syncThreads) upsertThreads(board string, threads *api.Threads) error {
 	stmt := sq.
 		Insert("threads").
 		Columns("thread_id", "board_id", "subject").
-		Suffix("ON CONFLICT (thread_id) DO NOTHING").
+		Suffix("ON CONFLICT (board_id, thread_id) DO NOTHING").
 		PlaceholderFormat(sq.Dollar).
 		RunWith(db)
 
@@ -289,6 +377,7 @@ func main() {
 	subcommands.Register(&listThreads{}, "")
 
 	subcommands.Register(&syncBoards{}, "")
+	subcommands.Register(&syncPosts{}, "")
 	subcommands.Register(&syncThreads{}, "")
 
 	flag.Parse()

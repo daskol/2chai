@@ -84,7 +84,7 @@ type Post struct {
 	Op         int     `json:"op"`
 	Parent     string  `json:"parent"`
 	Sticky     int     `json:"sticky"`
-	Subject    string  `json:subject"`
+	Subject    string  `json:"subject"`
 	Timestamp  int64   `json:"timestamp"`
 	Trip       string  `json:"trip"`
 }
