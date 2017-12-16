@@ -195,6 +195,90 @@ func (s *syncBoards) upsertBoards(boards *api.Boards) error {
 	return nil
 }
 
+// syncThreads реализует интерфейс subcommands.Commander для того, чтобы
+// добавить новые нити или обновить существующие.
+type syncThreads struct{}
+
+func (s *syncThreads) Name() string     { return "sync-threads" }
+func (s *syncThreads) Synopsis() string { return "Synchronize threads of specified board." }
+func (s *syncThreads) Usage() string {
+	return "sync-threads BOARD\n"
+}
+
+func (s *syncThreads) SetFlags(_ *flag.FlagSet) {}
+
+func (s *syncThreads) Execute(_ context.Context, f *flag.FlagSet, _ ...interface{}) subcommands.ExitStatus {
+	switch {
+	case len(f.Args()) < 1:
+		log.Println("Too few arguments.")
+		return subcommands.ExitUsageError
+	case len(f.Args()) > 1:
+		log.Println("Too many arguments.")
+		return subcommands.ExitUsageError
+	}
+
+	board := f.Args()[0]
+
+	if lst, err := api.ListThreadCatalog(board); err != nil {
+		log.Fatal(err)
+	} else if err := s.upsertThreads(board, lst); err != nil {
+		log.Fatal(err)
+	}
+
+	return subcommands.ExitSuccess
+}
+
+func (s *syncThreads) upsertThreads(board string, threads *api.Threads) error {
+	log.Println("connect to database")
+	db, err := sql.Open("postgres", dsn)
+
+	if err != nil {
+		return err
+	}
+
+	defer db.Close()
+
+	if err := db.Ping(); err != nil {
+		return err
+	}
+
+	log.Println("find identifier of board `" + board + "`")
+	boardID := 0
+	rowScanner := sq.
+		Select("board_id").
+		From("boards").
+		Where(sq.Eq{"abbr": board}).
+		PlaceholderFormat(sq.Dollar).
+		RunWith(db).
+		QueryRow()
+
+	if err := rowScanner.Scan(&boardID); err != nil {
+		return err
+	}
+
+	log.Println("prepare insert or update statement")
+	stmt := sq.
+		Insert("threads").
+		Columns("thread_id", "board_id", "subject").
+		Suffix("ON CONFLICT (thread_id) DO NOTHING").
+		PlaceholderFormat(sq.Dollar).
+		RunWith(db)
+
+	for _, thread := range threads.Threads {
+		stmt = stmt.Values(thread.Num, boardID, thread.Subject)
+	}
+
+	log.Println("execute statement")
+
+	if _, err := stmt.Exec(); err != nil {
+		return err
+	}
+
+	log.Println("done.")
+
+	return nil
+}
+
 func main() {
 	subcommands.Register(subcommands.HelpCommand(), "")
 	subcommands.Register(subcommands.FlagsCommand(), "")
@@ -205,6 +289,7 @@ func main() {
 	subcommands.Register(&listThreads{}, "")
 
 	subcommands.Register(&syncBoards{}, "")
+	subcommands.Register(&syncThreads{}, "")
 
 	flag.Parse()
 

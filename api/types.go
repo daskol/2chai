@@ -106,7 +106,7 @@ type Thread struct {
 	PostsCount int     `json:"posts_count"`
 	LastHit    int64   `json:"lasthit"`
 	Name       string  `json:"name"`
-	Num        string  `json:"num"`
+	Num        int     `json:"num,string"`
 	Op         int     `json:"op"`
 	Parent     string  `json:"parent"`
 	Score      float64 `json:"score"`
@@ -119,7 +119,7 @@ type Thread struct {
 }
 
 func (t *Thread) String() string {
-	return fmt.Sprintf("<Thread[%s] subj=%s;>", t.Num, t.Subject)
+	return fmt.Sprintf("<Thread[%d] subj=%s;>", t.Num, t.Subject)
 }
 
 // CommonAttributes содержит общие отрибуты ответы, такие как реклама или
